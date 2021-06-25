@@ -6,19 +6,19 @@
 #include <unistd.h>
 
 //trimitem data catre server cu timeout de 20 de sec
-int SockSend(int hSocket, char* Rqst, short lenRqst)
+int SockSend(int sock, char* Rqst, short lenRqst)
 {
     int shortRetval = -1;
     struct timeval tv;
     tv.tv_sec = 20;
     tv.tv_usec = 0;
 
-    if(setsockopt(hSocket,SOL_SOCKET, SO_SNDTIMEO,(char *)&tv, sizeof (tv)) < 0)
+    if(setsockopt(sock,SOL_SOCKET, SO_SNDTIMEO,(char *)&tv, sizeof (tv)) < 0)
     {
         printf("Time out\n");
         return -1;
     }
-    shortRetval = send(hSocket, Rqst, lenRqst,0);
+    shortRetval = send(sock, Rqst, lenRqst,0);
     return shortRetval;
 
 }
@@ -53,15 +53,14 @@ int main(int argc , char *argv[])
 
     char SendToServer[100] = {0};
 
-    printf("Scrie un mesaj: ");
-    gets(SendToServer);
-    SockSend(sock, SendToServer, strlen(SendToServer));
+
 
     //keep communicating with server
     while(1)
     {
-        printf("Enter message : ");
-        scanf("%s" , message);
+        printf("Scrie un mesaj: ");
+        gets(SendToServer);
+        SockSend(sock, SendToServer, strlen(SendToServer));
 
         //Send some data
         if( send(sock , message , strlen(message) , 0) < 0)
