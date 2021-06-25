@@ -74,6 +74,7 @@ int main(int argc , char *argv[]) {
         memset(client_message, '\0', sizeof client_message);
         memset(message, '\0', sizeof message);
         //Receive a reply from the client
+        while (1){
         if( recv(client_sock, client_message, 200, 0) < 0)
         {
             printf("recv failed");
@@ -87,6 +88,7 @@ int main(int argc , char *argv[]) {
         else
         {
             strcpy(message,"Invalid Message !");
+        }
         }
     }
 

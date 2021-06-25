@@ -51,14 +51,17 @@ int main(int argc , char *argv[])
 
     puts("Connected\n");
 
-    char SendToServer[100] = {0};
 
 
+    int vitezaVant=21;
+    int vitezaEoliana=15;
+    int curentProdus=10;
+    int SendToServer[100] = {vitezaVant,vitezaEoliana,curentProdus};
 
     //keep communicating with server
     while(1)
     {
-        printf("Scrie un mesaj: ");
+        printf("Datele trimise sunt: ",vitezaEoliana,vitezaVant,curentProdus  );
         gets(SendToServer);
         SockSend(sock, SendToServer, strlen(SendToServer));
 
