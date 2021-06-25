@@ -1,118 +1,144 @@
-#include <stdio.h>
-#include <pthread.h>
-#include <sys/socket.h>
-#include <linux/in.h>
 
-typedef struct {
-    int sock;
-    struct sockaddr address;
-    int addr_len;
+#include<stdio.h>
+#include<string.h>	//strlen
+#include<stdlib.h>	//strlen
+#include<sys/socket.h>
+#include<arpa/inet.h>	//inet_addr
+#include<unistd.h>	//write
+#include<pthread.h> //for threading , link with lpthread
 
-} connection_t;
+//the thread function
+void *connection_handler(void *);
 
-void * function(void *);
+int main(int argc , char *argv[]) {
+    int socket_desc, client_sock, c, *new_sock;
+    struct sockaddr_in server, client;
+    char Length;
+    char bytes_to_receive;
+    char received_bytes;
+    struct data{
+        int vitezaVant;
+        int vitezaEoliana;
+        int curentProdus;
+    };
 
-//thread
-
-void *process(void * ptr)
-{
-    char *buffer;
-    int len;
-    connection_t * conn;
-    long addr = 0;
-
-    if(!ptr) pthread_exit(0);
-    conn = (connection_t *)ptr;
-
-    //citim lungimea mesajului;
-    read(conn-> sock, &len, sizeof (int ));
-    if(len > 0)
-    {
-        addr = (long)((struct sockaddr_in *)&conn->address)->sin_addr.s_addr;
-        buffer = (char *)malloc((len+1)*sizeof(char));
-        buffer[len] = 0;
-        // citim mesajul
-        read(conn->sock, buffer, len);
-
-        //printam mesajul
-        printf("%d.%d.%d.%d: %s\n",
-               (addr      ) & 0xff,
-               (addr >>  8) & 0xff,
-               (addr >> 16) & 0xff,
-               (addr >> 24) & 0xff,
-               buffer);
-        free(buffer);
+    //Create socket
+    socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_desc == -1) {
+        printf("Could not create socket");
     }
-    //inchidem socket si clean
-    close(conn->sock);
-    free(conn);
-    pthread_exit(0);
-}
+    puts("Socket created");
 
-int main(int argc, char  **argv)
-{
-    int sock = -1;
-    struct sockaddr_in address;
-    int port;
-    connection_t * connection;
-    pthread_t thread;
+    //Prepare the sockaddr_in structure
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(8888);
 
-    //verificam argumentele de la linia de comanda
-    if(argc !=2)
-    {
-        fprintf(stderr, "usage: %s port\n", argv[0]);
-        return -1;
+    //Bind
+    if (bind(socket_desc, (struct sockaddr *) &server, sizeof(server)) < 0) {
+        //print the error message
+        perror("bind failed. Error");
+        return 1;
     }
-    //obtinem portul
-    if (sscanf(argv[1], "%d", &port) <= 0)
-    {
-        fprintf(stderr, "%s: error: wrong parameter: port\n", argv[0]);
-        return -2;
-    }
+    puts("bind done");
 
-    //aici creeam socket
-    sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock <= 0)
-    {
-        fprintf(stderr, "%s: error: cannot create socket\n", argv[0]);
-        return -3;
-    }
+    //Listen
+    listen(socket_desc, 3);
 
-    //bind la socket port
+    //Accept and incoming connection
+    puts("Waiting for incoming connections...");
+    c = sizeof(struct sockaddr_in);
 
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(port);
-    if (bind(sock, (struct sockaddr *)&address, sizeof(struct sockaddr_in)) < 0)
-    {
-        fprintf(stderr, "%s: error: cannot bind socket to port %d\n", argv[0], port);
-        return -4;
-    }
 
-    //portul pentru ascultare
-    if (listen(sock, 5) < 0)
-    {
-        fprintf(stderr, "%s: error: cannot listen on port\n", argv[0]);
-        return -5;
-    }
-    printf("%s: ready and listening\n", argv[0]);
+    //Accept and incoming connection
+    puts("Waiting for incoming connections...");
+    c = sizeof(struct sockaddr_in);
+    while ((client_sock = accept(socket_desc, (struct sockaddr *) &client, (socklen_t *) &c))) {
+        puts("Connection accepted");
 
-    while (1)
-    {
-        // se accepta noile conexiuni
-        connection = (connection_t *)malloc(sizeof(connection_t));
-        connection->sock = accept(sock, &connection->address, &connection->addr_len);
-        if (connection->sock <= 0)
+        pthread_t sniffer_thread;
+        new_sock = malloc(1);
+        *new_sock = client_sock;
+
+        if (pthread_create(&sniffer_thread, NULL, connection_handler, (void *) new_sock) < 0) {
+            perror("could not create thread");
+            return 1;
+        }
+
+        //Now join the thread , so that we dont terminate before the thread
+        //pthread_join( sniffer_thread , NULL);
+        puts("Handler assigned");
+        char client_message[200]= {0};
+        char message[100] = {0};
+        const char *pMessage = "hello aticleworld.com";
+        memset(client_message, '\0', sizeof client_message);
+        memset(message, '\0', sizeof message);
+        //Receive a reply from the client
+        if( recv(new_sock, client_message, 200, 0) < 0)
         {
-            free(connection);
+            printf("recv failed");
+            break;
+        }
+        printf("Client reply : %s\n",client_message);
+        if(strcmp(pMessage,client_message)==0)
+        {
+            strcpy(message,"Hi there !");
         }
         else
         {
-            /* start a new thread but do not wait for it */
-            pthread_create(&thread, 0, process, (void *)connection);
-            pthread_detach(thread);
+            strcpy(message,"Invalid Message !");
         }
     }
 
+    if (client_sock < 0) {
+        perror("accept failed");
+        return 1;
+    }
+
+
     return 0;
 }
+
+
+
+
+/*
+ * This will handle connection for each client
+ * */
+void *connection_handler(void *socket_desc)
+{
+    //Get the socket descriptor
+    int sock = *(int*)socket_desc;
+    int read_size;
+    char *message , client_message[2000];
+
+    //Send some messages to the client
+    message = "Greetings! I am your connection handler\n";
+    write(sock , message , strlen(message));
+
+    message = "Now type something and i shall repeat what you type \n";
+    write(sock , message , strlen(message));
+
+    //Receive a message from client
+    while( (read_size = recv(sock , client_message , 2000 , 0)) > 0 )
+    {
+        //Send the message back to client
+        write(sock , client_message , strlen(client_message));
+    }
+
+    if(read_size == 0)
+    {
+        puts("Client disconnected");
+        fflush(stdout);
+    }
+    else if(read_size == -1)
+    {
+        perror("recv failed");
+    }
+
+    //Free the socket pointer
+    free(socket_desc);
+
+    return 0;
+}
+

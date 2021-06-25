@@ -1,60 +1,88 @@
-#include <stdio.h>
-#include <sys/socket.h>
-#include <netdb.h>
 
+#include <stdio.h>	//printf
+#include <string.h>	//strlen
+#include <sys/socket.h>	//socket
+#include <arpa/inet.h>	//inet_addr
+#include <unistd.h>
 
-int main(int argc, char ** argv)
+//trimitem data catre server cu timeout de 20 de sec
+int SockSend(int hSocket, char* Rqst, short lenRqst)
 {
-    int port;
-    int sock = -1;
-    struct sockaddr_in address;
-    struct hostent * host;
-    int len;
+    int shortRetval = -1;
+    struct timeval tv;
+    tv.tv_sec = 20;
+    tv.tv_usec = 0;
 
-    //verificam parametrii de pe linia de comanda
-
-    if(argc !=4)
+    if(setsockopt(hSocket,SOL_SOCKET, SO_SNDTIMEO,(char *)&tv, sizeof (tv)) < 0)
     {
-        printf("usage: %s hostname port text\n", argv[0]);
+        printf("Time out\n");
         return -1;
     }
+    shortRetval = send(hSocket, Rqst, lenRqst,0);
+    return shortRetval;
 
-    //obtinem portul daca nu e ok programul se va inchide
-    if (sscanf(argv[2], "%d", &port) <= 0)
-    {
-        fprintf(stderr, "%s: error: wrong parameter: port\n", argv[0]);
-        return -2;
-    }
-    //creeam socket
-    sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock <= 0)
-    {
-        fprintf(stderr, "%s: error: cannot create socket\n", argv[0]);
-        return -3;
-    }
-    //incercam conexiunea la server
-    address.sin_family = AF_INET;
-    address.sin_port = htons(port);
-    host = gethostbyname(argv[1]);
-    if (!host)
-    {
-        fprintf(stderr, "%s: error: unknown host %s\n", argv[0], argv[1]);
-        return -4;
-    }
-    memcpy(&address.sin_addr, host->h_addr_list[0], host->h_length);
+}
 
-    //cy socket, addresa host ne putem conecta la server
+int main(int argc , char *argv[])
+{
+    int sock;
+    struct sockaddr_in server;
+    char message[1000] , server_reply[2000];
 
-    if (connect(sock, (struct sockaddr *)&address, sizeof(address)))
+
+    //Create socket
+    sock = socket(AF_INET , SOCK_STREAM , 0);
+    if (sock == -1)
     {
-        fprintf(stderr, "%s: error: cannot connect to host %s\n", argv[0], argv[1]);
-        return -5;
+        printf("Could not create socket");
     }
-    //trimitem text la server
+    puts("Socket created");
 
-    len = strlen(argv[3]);
-    write(sock, &len, sizeof(int));
-    write(sock, argv[3], len);
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server.sin_family = AF_INET;
+    server.sin_port = htons( 8888 );
+
+    //Connect to remote server
+    if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
+    {
+        perror("connect failed. Error");
+        return 1;
+    }
+
+    puts("Connected\n");
+
+    char SendToServer[100] = {0};
+
+    printf("Scrie un mesaj: ");
+    gets(SendToServer);
+    SockSend(sock, SendToServer, strlen(SendToServer));
+
+    //keep communicating with server
+    while(1)
+    {
+        printf("Enter message : ");
+        scanf("%s" , message);
+
+        //Send some data
+        if( send(sock , message , strlen(message) , 0) < 0)
+        {
+            puts("Send failed");
+            return 1;
+        }
+
+        //Receive a reply from the server
+        if( recv(sock , server_reply , 2000 , 0) < 0)
+        {
+            puts("recv failed");
+            break;
+        }
+
+        puts("Server reply :");
+        puts(server_reply);
+
+
+
+    }
 
     close(sock);
     return 0;
