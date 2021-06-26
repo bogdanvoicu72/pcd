@@ -12,15 +12,9 @@ void *connection_handler(void *);
 
 int main(int argc , char *argv[]) {
     int socket_desc, client_sock, c, *new_sock;
-    struct sockaddr_in server, client;
-    char Length;
-    char bytes_to_receive;
-    char received_bytes;
-    struct data{
-        int vitezaVant;
-        int vitezaEoliana;
-        int curentProdus;
-    };
+    struct sockaddr_in server, client, webconnection;
+
+
 
     //Create socket
     socket_desc = socket(AF_INET, SOCK_STREAM, 0);
@@ -33,6 +27,10 @@ int main(int argc , char *argv[]) {
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
     server.sin_port = htons(8888);
+    webconnection.sin_family = AF_INET;
+    webconnection.sin_addr.s_addr = INADDR_ANY;
+    webconnection.sin_port = htons(8080);
+
 
     //Bind
     if (bind(socket_desc, (struct sockaddr *) &server, sizeof(server)) < 0) {
@@ -41,6 +39,13 @@ int main(int argc , char *argv[]) {
         return 1;
     }
     puts("bind done");
+    //Bind
+    if (bind(socket_desc, (struct sockaddr *) &webconnection, sizeof(webconnection)) < 0) {
+        //print the error message
+        perror("bind failed. Error pentru web ");
+        return 1;
+    }
+    puts("bind done for web");
 
     //Listen
     listen(socket_desc, 3);
