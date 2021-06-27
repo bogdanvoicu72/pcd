@@ -13,8 +13,12 @@ pthread_mutex_t lock_data = PTHREAD_MUTEX_INITIALIZER;
 int adminIsConnected;
 int clientsConnectedNr;
 int newData;
+int STDClientsNr;
+int sockets[100];
 
 char data[100][2048];
+
+pthread_t std_clients[100];
 
 void *connection_handler(void *);
 void *wait_for_web_connections(void *);
@@ -27,6 +31,7 @@ int main(int argc , char *argv[]) {
 
     adminIsConnected = 0;
     clientsConnectedNr = 0;
+    STDClientsNr = 0;
     newData = 0;
 
     pthread_t webConnectionsHandler;
@@ -67,11 +72,12 @@ int main(int argc , char *argv[]) {
     while ((client_sock = accept(socket_desc, (struct sockaddr *) &client, (socklen_t *) &c))) {
         puts("[+] Connection accepted");
 
-        pthread_t sniffer_thread;
+        sockets[STDClientsNr] = client_sock;
+
         new_sock = malloc(1);
         *new_sock = client_sock;
 
-        if (pthread_create(&sniffer_thread, NULL, connection_handler, (void *) new_sock) < 0) {
+        if (pthread_create(&std_clients[STDClientsNr++], NULL, connection_handler, (void *) new_sock) < 0) {
             perror("Could not create thread");
             return 1;
         }
@@ -87,20 +93,23 @@ int main(int argc , char *argv[]) {
 
 void sendFile(char *path, int sockfd)
 {
-	int fd;
-	struct stat stbuf;
+	unsigned char buffer[1024];
+	size_t bytesRead = 0;
 
-	fd = open(path, O_RDONLY);
+	FILE *fd1 = fopen(path, "rb");
 
-	if (0 == fd) {
+	if (NULL == fd1) {
 		printf("Cannot open file at path: %s", path);
 		return;
 	}
-	fstat(fd, &stbuf);
 
-	sendfile(sockfd, fd, 0, stbuf.st_size);
+	while ((bytesRead = fread(buffer, 1, sizeof(buffer), fd1)) > 0)
+	{
+		send(sockfd, buffer, sizeof(buffer), 0);
+	}
 	close(sockfd);
-	close(fd);
+
+	fclose(fd1);
 }
 
 void createHTTPResponse(char* response)
@@ -178,6 +187,8 @@ void *wait_for_admin_connection(void *argv)
         perror("Admin accept failed");
         return 1;
     }
+    close(socket_desc);
+    pthread_exit(NULL);
 }
 
 void *wait_for_web_connections(void *argv)
@@ -241,30 +252,83 @@ void *admin_connection_handler(void *argv)
 
         recv(sock, fromAdmin, sizeof(fromAdmin), 0);
 
-        if (newData != 0)
-        {
-            char headerMessage[2048] = "FILE";
-            send(sock, headerMessage, sizeof(headerMessage), 0);
-            sendFile("config.txt", sock);
-            bzero(&headerMessage, sizeof(headerMessage));
-        
-            // Delete file contents
-            FILE *fp;
-            fp = fopen("config.txt", "w");
-            fclose(fp);
 
-            newData = 0;
-        }
-        else
+        if (strcmp(fromAdmin, "SET_RPM") == 0)
         {
-            send(sock, adminMessage, sizeof(adminMessage), 0);
+            fprintf(stdout, "%s\n", fromAdmin);
+
+            char buffer[2048];
+
+            for (int i = 0; i < STDClientsNr; i++)
+            {
+                char bufferId[10];
+
+                snprintf(bufferId, sizeof(bufferId), "%d", sockets[i]);
+
+                strcat(buffer, "ID: ");
+                strcat(buffer, bufferId);
+                strcat(buffer, "\n");
+            
+                bzero(&bufferId, sizeof(bufferId));
+            }
+            
+            char eolNr[10];
+            char rpmValue[10];
+
+            send(sock, buffer, sizeof(buffer), 0);
+            recv(sock, eolNr, sizeof(eolNr), 0);
+            recv(sock, rpmValue, sizeof(rpmValue), 0);
+
+            fprintf(stdout, "Needs to be changed rpm eol ID: %s, with value: %s\n", eolNr, rpmValue);
+            
+            int sockIdChange = atoi(eolNr);
+
+            char headerChangeRpm[2048] = "CHANGE_RPM";
+
+            send(sockIdChange, headerChangeRpm, sizeof(headerChangeRpm), 0);
+            send(sockIdChange, rpmValue, sizeof(rpmValue), 0);
+
+            //recv(sock, buffer, sizeof(buffer), 0);
+
+        } else {
+            if (strcmp(fromAdmin, "REMOVE_LAST") == 0)
+            {
+                fprintf(stdout, "%s\n", fromAdmin);
+
+                pthread_cancel(std_clients[--STDClientsNr]);
+
+                strcpy(adminMessage, "Last is removed");
+                send(sock, adminMessage, sizeof(adminMessage), 0);
+            }
+            else
+            {
+                if (newData != 0)
+                {
+                    char headerMessage[2048] = "FILE";
+                    send(sock, headerMessage, sizeof(headerMessage), 0);
+                    sendFile("config.txt", sock);
+                    bzero(&headerMessage, sizeof(headerMessage));
+                
+                    // Delete file contents
+                    FILE *fp;
+                    fp = fopen("config.txt", "w");
+                    fclose(fp);
+
+                    newData = 0;
+                }
+                else
+                {
+                    send(sock, adminMessage, sizeof(adminMessage), 0);
+                }
+            }
         }
+        
         
         bzero(&adminMessage, sizeof(adminMessage));
         bzero(&fromAdmin, sizeof(fromAdmin));
 
     }
-
+    pthread_exit(NULL);
 }
 
 void *web_connection_handler(void *argv)
@@ -332,9 +396,7 @@ void *connection_handler(void *socket_desc)
         bzero(&client_message, sizeof(client_message));
     }
 
-    //Free the socket pointer
-    free(socket_desc);
-
-    return 0;
+    close(socket_desc);
+    pthread_exit(NULL);
 }
 

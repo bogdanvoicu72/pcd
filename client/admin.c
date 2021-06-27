@@ -8,8 +8,36 @@
 #include <time.h>
 
 void write_file(int);
+void main_menu();
+void read_file_contents(char* buffer)
+{
+    FILE * fp;
+    char * line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    fp = fopen("config.txt", "r");
+    if (fp == NULL)
+        printf("Cannot open config.txt\n");
+
+    while ((read = getline(&line, &len, fp)) != -1) {
+        strcat(buffer, line);
+    }
+
+    fclose(fp);
+    if (line)
+        free(line);
+    //exit(EXIT_SUCCESS);
+}
 
 int main(int argc , char *argv[])
+{
+    main_menu();
+    
+    return 0;
+}
+
+void main_menu()
 {
     int sock;
     struct sockaddr_in server;
@@ -24,7 +52,7 @@ int main(int argc , char *argv[])
     puts("Socket created");
 
     struct timeval timeout;      
-    timeout.tv_sec = 10;
+    timeout.tv_sec = 20;
     timeout.tv_usec = 0;
     
     if (setsockopt (sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
@@ -45,54 +73,125 @@ int main(int argc , char *argv[])
 
     puts("Connected");
 
-    //keep communicating with server
     while(1)
     {
-        char message[2048];
-        char message2[2048];
-        char dummyMessage[2048] = "Admin";
+        fprintf(stdout, "1. Standard EXEC_MODE\n");
+        fprintf(stdout, "2. Remove last wind turbine\n");
+        fprintf(stdout, "3. Set RPM\n");
+        fprintf(stdout, "\n0. Exit\n");
 
-        send(sock, dummyMessage, sizeof(dummyMessage), 0);
-        recv(sock, message, sizeof(message), 0);
+        int option;
+        scanf("%d", &option);
 
-        fprintf(stdout, "%s\n", message);
-
-        if (strcmp(message, "FILE") == 0)
+        if (option == 1)
         {
-            write_file(sock);
+            //keep communicating with server
+            while(1)
+            {
+                char message[2048];
+                char message2[2048];
+                char dummyMessage[2048] = "Admin";
 
-            FILE *f = fopen("config.txt", "rb");
-            fseek(f, 0, SEEK_END);
-            long fsize = ftell(f);
-            fseek(f, 0, SEEK_SET);  /* same as rewind(f); */
+                send(sock, dummyMessage, sizeof(dummyMessage), 0);
+                recv(sock, message, sizeof(message), 0);
 
-            char *string = malloc(fsize + 1);
-            fread(string, 1, fsize, f);
-            fclose(f);
+                fprintf(stdout, "%s\n", message);
 
-            string[fsize] = 0;
+                if (strcmp(message, "FILE") == 0)
+                {
+                    write_file(sock);
 
-            fprintf(stdout, "%s\n", string);
+                    FILE *f = fopen("config.txt", "rb");
+                    fseek(f, 0, SEEK_END);
+                    long fsize = ftell(f);
+                    fseek(f, 0, SEEK_SET);  /* same as rewind(f); */
 
-            //char mailExec[4096];
+                    char *string = malloc(fsize + 1);
+                    fread(string, 1, fsize, f);
+                    fclose(f);
 
-            //system("python3 -m smtpd -c DebuggingServer -n localhost:1025");
-            //system("python3 ../email-script.py asdasd");
+                    string[fsize] = 0;
 
+                    fprintf(stdout, "%s\n", string);
+
+                    char mailExec[4096];
+                    char fileCOntents[2048];
+
+                    read_file_contents(fileCOntents);
+                    //fprintf(stdout, "%s\n", fileCOntents);
+                    strcpy(mailExec, "python3 ../email-script.py \"");
+                    strcat(mailExec, fileCOntents);
+                    strcat(mailExec, "\"");
+
+                    system("python3 -m smtpd -c DebuggingServer -n localhost:1025");
+                    system(mailExec);
+
+                }
+                else
+                {
+                    recv(sock, message2, sizeof(message2), 0);
+                    fprintf(stdout, "%s\n", message2);
+                }
+
+                bzero(&message, sizeof(message));
+                bzero(&message2, sizeof(message2));
+                sleep(1);
+            }
+
+            //close(sock);
         }
-        else
+
+        if (option == 2)
         {
-            recv(sock, message2, sizeof(message2), 0);
-            fprintf(stdout, "%s\n", message2);
+            while(1)
+            {
+                char message[2048];
+                char rmeol[2048] = "REMOVE_LAST";
+
+                send(sock, rmeol, sizeof(rmeol), 0);
+                recv(sock, message, sizeof(message), 0);
+
+                fprintf(stdout, "%s\n", message);
+                
+                bzero(&message, sizeof(message));
+                break;
+            }
+
+            //close(sock);
+            //break;
         }
 
-        bzero(&message, sizeof(message));
-        bzero(&message2, sizeof(message2));
-        sleep(1);
+        if (option == 3)
+        {
+            char message[2048];
+            char rmeol[2048] = "SET_RPM";
+            char opt2[10];
+            char rpm[10];
+
+            send(sock, rmeol, sizeof(rmeol), 0);
+            recv(sock, message, sizeof(message), 0);
+
+            fprintf(stdout, "%s\n", message);
+            
+            bzero(&message, sizeof(message));
+            
+            fprintf(stdout, "%s\n", "Choose an ID: ");
+            scanf("%s", opt2);
+
+            fprintf(stdout, "%s\n", "RPM value: ");
+            scanf("%s", rpm);
+
+            send(sock, opt2, sizeof(opt2), 0);
+            send(sock, rpm, sizeof(rpm), 0);
+
+            //close(sock);
+            //break;
+        }
+
+        if (option == 0)
+            break;
+
     }
-
-    close(sock);
-    return 0;
 }
 
 void write_file(int sockfd)

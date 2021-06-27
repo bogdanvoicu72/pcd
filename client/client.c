@@ -7,6 +7,11 @@
 #include <pthread.h>
 #include <time.h>
 
+#define EOL_STD 1
+#define EOL_CONST 2
+
+static int working_mode;
+int rpmNeeded;
 
 struct s_message
 {
@@ -21,6 +26,9 @@ int generateRandom(int lower, int upper, int count);
 
 int main(int argc , char *argv[])
 {
+    working_mode = EOL_STD;
+    rpmNeeded = 0;
+
     int sock;
     struct sockaddr_in server;
     char message[1000] , server_reply[2000];
@@ -69,11 +77,23 @@ int main(int argc , char *argv[])
     {
         char message[2000];
 
-        int lower = 3, upper = 50, count =1;
+        int lower = 3, upper = 50, count =1, val1, val2, val3;
 
-        int val1 = generateRandom(lower,upper,count);
-        int val2 = generateRandom(lower,upper,count);
-        int val3 = generateRandom(lower,upper,count);
+        if (working_mode == EOL_STD)
+        {
+            val1 = generateRandom(lower,upper,count);
+            val2 = generateRandom(lower,upper,count);
+            val3 = generateRandom(lower,upper,count);
+        }
+        else
+        {
+            if (working_mode == EOL_CONST)
+            {
+                val1 = generateRandom(lower,upper,count);
+                val2 = rpmNeeded;
+                val3 = generateRandom(lower,upper,count);
+            }
+        }
 
         struct s_message dummy_message;
         dummy_message.vitezaVant = val1;
@@ -105,6 +125,14 @@ void *handler_recv_thread(void *argv)
     {
         if (recv(sock , message , sizeof(message), 0) >= 0)
         {
+            if (strcmp(message, "CHANGE_RPM") == 0)
+            {
+                char newRpm[10];
+                recv(sock , newRpm , sizeof(newRpm), 0);
+                fprintf(stdout, "Server said: %s\n", newRpm);
+                rpmNeeded = atoi(newRpm);
+                working_mode = EOL_CONST;
+            }
             fprintf(stdout, "Server said: %s\n", message);
 
             // check if message == something

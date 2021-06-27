@@ -5,13 +5,13 @@ import sys
 import ssl
 
 print("Mesajul pe care vrei sa il trimiti este: ", sys.argv)
-arg1 = str(sys.argv)
+arg1 = str(' '.join(sys.argv[1:]))
 print('Mesjaul este: ', arg1)
 
 port = 465
 smtp_server = "smtp.gmail.com"
 sender_email = "pcd999pcd@gmail.com"
-receiver_email = "bogdan.voicu99@e-uvt.ro"
+receiver_email = "dan.tomoiu99@e-uvt.ro"
 password = 'Ferari99'
 message = arg1
 
