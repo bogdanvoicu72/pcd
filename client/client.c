@@ -74,6 +74,7 @@ int main(int argc , char *argv[])
         int val1 = generateRandom(lower,upper,count);
         int val2 = generateRandom(lower,upper,count);
         int val3 = generateRandom(lower,upper,count);
+
         struct s_message dummy_message;
         dummy_message.vitezaVant = val1;
         dummy_message.vitezaRotEoliana = val2;
