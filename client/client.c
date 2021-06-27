@@ -5,6 +5,8 @@
 #include <arpa/inet.h>	//inet_addr
 #include <unistd.h>
 #include <pthread.h>
+#include <time.h>
+
 
 struct s_message
 {
@@ -15,6 +17,7 @@ struct s_message
 
 void createMessage(char* message, struct s_message s_message_);
 void *handler_recv_thread(void *argv);
+int generateRandom(int lower, int upper, int count);
 
 int main(int argc , char *argv[])
 {
@@ -36,7 +39,7 @@ int main(int argc , char *argv[])
     
     if (setsockopt (sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
     {
-        error("setsockopt failed\n");
+        perror("setsockopt failed\n");
     }
         
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
@@ -66,10 +69,15 @@ int main(int argc , char *argv[])
     {
         char message[2000];
 
+        int lower = 3, upper = 50, count =1;
+
+        int val1 = generateRandom(lower,upper,count);
+        int val2 = generateRandom(lower,upper,count);
+        int val3 = generateRandom(lower,upper,count);
         struct s_message dummy_message;
-        dummy_message.vitezaVant = 21;
-        dummy_message.vitezaRotEoliana = 15;
-        dummy_message.curentProdus = 10;
+        dummy_message.vitezaVant = val1;
+        dummy_message.vitezaRotEoliana = val2;
+        dummy_message.curentProdus = val3;
 
         createMessage(message, dummy_message);
 
@@ -105,6 +113,17 @@ void *handler_recv_thread(void *argv)
     
 
 }
+
+int generateRandom(int lower, int upper, int count)
+{
+    int i;
+    for(i=0; i<count; i++)
+    {
+        int num = (rand() % (upper-lower +1)) + lower;
+        return num;
+    }
+}
+
 
 void createMessage(char* message, struct s_message s_message_)
 {
